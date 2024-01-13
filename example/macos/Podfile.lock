@@ -1,0 +1,22 @@
+PODS:
+  - FlutterMacOS (1.0.0)
+  - sphere_uniform_geocoding (0.0.1):
+    - FlutterMacOS
+
+DEPENDENCIES:
+  - FlutterMacOS (from `Flutter/ephemeral`)
+  - sphere_uniform_geocoding (from `Flutter/ephemeral/.symlinks/plugins/sphere_uniform_geocoding/macos`)
+
+EXTERNAL SOURCES:
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+  sphere_uniform_geocoding:
+    :path: Flutter/ephemeral/.symlinks/plugins/sphere_uniform_geocoding/macos
+
+SPEC CHECKSUMS:
+  FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
+  sphere_uniform_geocoding: 0203cad63cfb796bc5b17746ba1751a998635940
+
+PODFILE CHECKSUM: 236401fc2c932af29a9fcf0e97baeeb2d750d367
+
+COCOAPODS: 1.14.2
