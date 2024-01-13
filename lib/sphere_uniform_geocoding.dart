@@ -15,6 +15,10 @@ int sum(int a, int b) => _bindings.sum(a, b);
 
 int calculateSegmentIndexFromLatLng(int n, double userPosLat, double userPosLng) => _bindings.CalculateSegmentIndexFromLatLng(n, userPosLat, userPosLng);
 
+(double, double) calculateSegmentCenter(int n, int segmentId) {
+  return (_bindings.CalculateSegmentCenterLat(n, segmentId), _bindings.CalculateSegmentCenterLng(n, segmentId));
+}
+
 /// A longer lived native function, which occupies the thread calling it.
 ///
 /// Do not call these kind of native functions in the main isolate. They will

@@ -28,6 +28,8 @@ FFI_PLUGIN_EXPORT intptr_t sum_long_running(intptr_t a, intptr_t b) {
 
 #define NELEMS(x)  (sizeof(x) / sizeof((x)[0]))
 
+#define Deg2Rad (0.017453292)
+
 // 황금비를 이루는 직사각형의 너비와 높이 계산
 // (직사각형의 중심에서 각 꼭지점까지의 거리는 1)
 // Hh: 직사각형 높이의 절반
@@ -64,6 +66,7 @@ typedef enum {
 typedef enum {
     Parallelogram_Bottom,
     Parallelogram_Top,
+    Parallelogram_Error,
 } Parallelogram;
 
 typedef enum {
@@ -92,6 +95,21 @@ typedef struct {
     int b;
     Parallelogram t;
 } AbtCoords;
+
+typedef struct {
+    int segGroup;
+    AbtCoords abt;
+} SegGroupAndAbt;
+
+typedef struct {
+    int segGroup;
+    int localSegIndex;
+} SegGroupAndLocalSegIndex;
+
+typedef struct {
+    double lat;
+    double lng;
+} GpsCoords;
 
 int VertIndexPerFaces[20][3] = {
         {0, 1, 7}, // Face 0
@@ -375,6 +393,10 @@ Vector3 NegateVector3(Vector3 v) {
     return (Vector3){.x=-v.x,.y=-v.y,.z=-v.z};
 }
 
+Vector3 AddVector3(Vector3 a, Vector3 b) {
+    return (Vector3){.x=a.x+b.x,.y=a.y+b.y,.z=a.z+b.z};
+}
+
 Vector3 DiffVector3(Vector3 a, Vector3 b) {
     return (Vector3){.x=a.x-b.x,.y=a.y-b.y,.z=a.z-b.z};
 }
@@ -554,4 +576,172 @@ FFI_PLUGIN_EXPORT int CalculateSegmentIndexFromLatLng(int n, double userPosLat, 
     return ConvertToSegmentIndex(segGroupIndex, n, abtCoords.a, abtCoords.b, abtCoords.t);
 }
 
+// AB 좌표의 B 좌표로 시작되는 세그먼트 서브 인덱스의 시작값을 계산한다.
+int CalculateLocalSegmentIndexForB(int n, int b) {
+    if (n <= 0) {
+        //throw new IndexOutOfRangeException(nameof(n));
+        return ErrorCode_ArgumentOutOfRangeException;
+    }
+
+    return ConvertToLocalSegmentIndex(n, 0, b, Parallelogram_Bottom);
+}
+
+// 세그먼트 서브 인덱스가 주어졌을 때, B 좌표를 이진 탐색 방법으로 찾아낸다.
+// 단, 찾아낸 B 좌표는 b0 ~ b1 범위에 있다고 가정한다.
+int SearchForB(int n, int b0, int b1, int localSegmentIndex) {
+    if (n <= 0) {
+        //throw new IndexOutOfRangeException(nameof(n));
+        return ErrorCode_ArgumentOutOfRangeException;
+    }
+
+    if (b0 < 0) {
+        //throw new IndexOutOfRangeException(nameof(b0));
+        return ErrorCode_ArgumentOutOfRangeException;
+    }
+
+    if (b1 >= n) {
+        //throw new IndexOutOfRangeException(nameof(b1));
+        return ErrorCode_ArgumentOutOfRangeException;
+    }
+
+    if (b0 > b1) {
+        //throw new IndexOutOfRangeException($"{nameof(b0)}, {nameof(b1)}");
+        return ErrorCode_ArgumentOutOfRangeException;
+    }
+
+    int localIndex0 = CalculateLocalSegmentIndexForB(n, b0);
+    int localIndex1 = CalculateLocalSegmentIndexForB(n, b1);
+
+    if (localIndex0 > localSegmentIndex || localIndex1 < localSegmentIndex) {
+        //throw new IndexOutOfRangeException(nameof(localSegmentIndex));
+        return ErrorCode_ArgumentOutOfRangeException;
+    }
+
+    if (localIndex0 == localSegmentIndex) {
+        return b0;
+    }
+
+    if (localIndex1 == localSegmentIndex) {
+        return b1;
+    }
+
+    while (b1 - b0 > 1) {
+        int bMid = (b0 + b1) / 2;
+        int v = CalculateLocalSegmentIndexForB(n, bMid) - localSegmentIndex;
+        if (v < 0) {
+            b0 = bMid;
+            continue;
+        }
+        if (v > 0) {
+            b1 = bMid;
+            continue;
+        }
+
+        return bMid;
+    }
+
+    return b0;
+}
+
+SegGroupAndLocalSegIndex SplitSegIndexToSegGroupAndLocalSegmentIndex(int segmentIndex) {
+    int segmentGroupIndex = segmentIndex >> LocalSegmentIndexBitCount;
+    int localSegIndex = segmentIndex & ((1 << LocalSegmentIndexBitCount) - 1);
+    return (SegGroupAndLocalSegIndex){.segGroup=segmentGroupIndex, .localSegIndex=localSegIndex};
+}
+
+AbtCoords SplitLocalSegmentIndexToAbt(int n, int localSegmentIndex) {
+    if (n <= 0) {
+        return (AbtCoords){.a=INT32_MIN, .b=INT32_MIN, .t=Parallelogram_Error};
+    }
+
+    int b = SearchForB(n, 0, n - 1, localSegmentIndex);
+    int a = (localSegmentIndex - CalculateLocalSegmentIndexForB(n, b)) / 2;
+    Parallelogram t = !((b % 2 == 0 && localSegmentIndex % 2 == 0) || (b % 2 == 1 && localSegmentIndex % 2 == 1)) ? Parallelogram_Bottom : Parallelogram_Top;
+    return (AbtCoords){.a=a, .b=b, .t=t};
+}
+
+SegGroupAndAbt SplitSegIndexToSegGroupAndAbt(int n, int segmentIndex) {
+    SegGroupAndLocalSegIndex segGroupAndLocalSegIndex = SplitSegIndexToSegGroupAndLocalSegmentIndex(segmentIndex);
+    AbtCoords abt = SplitLocalSegmentIndexToAbt(n, segGroupAndLocalSegIndex.localSegIndex);
+    return (SegGroupAndAbt){.segGroup=segGroupAndLocalSegIndex.segGroup, .abt=abt};
+}
+
+Vector3 NormalizeVector3(Vector3 v) {
+    double m = Magnitude(v);
+    return ScalarMultiplyVector(1.0/m, v);
+}
+
+// Seg Index의 중심 좌표를 계산해서 반환
+Vector3 CalculateSegmentCenter(int n, int segmentIndex) {
+    SegGroupAndAbt segGroupAndAbt = SplitSegIndexToSegGroupAndAbt(n, segmentIndex);
+    //Vector3 segGroupVerts[] = { VertIndexPerFaces[segGroupIndex].Select(e => Vertices[e]).ToArray();
+    Vector3 segGroupVerts[] = {
+            Vertices[VertIndexPerFaces[segGroupAndAbt.segGroup][0]],
+            Vertices[VertIndexPerFaces[segGroupAndAbt.segGroup][1]],
+            Vertices[VertIndexPerFaces[segGroupAndAbt.segGroup][2]],
+    };
+    Vector3 axisA = ScalarMultiplyVector(1.0 / n, DiffVector3(segGroupVerts[1], segGroupVerts[0]));
+    Vector3 axisB = ScalarMultiplyVector(1.0 / n, DiffVector3(segGroupVerts[2], segGroupVerts[0]));
+
+    //Vector3 parallelogramCorner = segGroupVerts[0] + ScalarMultiplyVector(ab.x, axisA) + ScalarMultiplyVector(ab.y * axisB);
+    Vector3 parallelogramCorner = {0,0,0};
+    parallelogramCorner = AddVector3(parallelogramCorner, segGroupVerts[0]);
+    parallelogramCorner = AddVector3(parallelogramCorner, ScalarMultiplyVector(segGroupAndAbt.abt.a, axisA));
+    parallelogramCorner = AddVector3(parallelogramCorner, ScalarMultiplyVector(segGroupAndAbt.abt.b, axisB));
+    //Vector3 offset = axisA + axisB;
+    Vector3 offset = AddVector3(axisA, axisB);
+    return NormalizeVector3(AddVector3(parallelogramCorner, ScalarMultiplyVector(1.0 / 3 * (segGroupAndAbt.abt.t == Parallelogram_Top ? 2 : 1), offset)));
+}
+
+// https://stackoverflow.com/questions/1628386/normalise-orientation-between-0-and-360
+// Normalizes any number to an arbitrary range
+// by assuming the range wraps around when going below min or above max
+static double Normalize(double value, double start, double end) {
+    double width = end - start; //
+    double offsetValue = value - start; // value relative to 0
+
+    return (offsetValue - (floor(offsetValue / width) * width)) + start;
+    // + start to reset back to start of original range
+}
+
+double Sign(double v) {
+    return (v > 0) - (v < 0);
+}
+
+double Clamp(double v, double lo, double hi) {
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
+
+double Angle(Vector3 from, Vector3 to)
+{
+    double num = sqrt(SqrMagnitude(from) * SqrMagnitude(to));
+    return num < 1.0000000036274937E-15 ? 0.0 : acos((double) Clamp(Dot(from, to) / num, -1, 1)) * 57.29578;
+}
+
+// 임의의 지점 p의 위도, 경도를 계산하여 라디안으로 반환한다.
+// 위도는 -pi/2 ~ +pi/2 범위
+// 경도는 -pi ~ pi 범위다.
+GpsCoords CalculateLatLng(Vector3 p) {
+    Vector3 pNormalized = NormalizeVector3(p);
+
+    double lng = Normalize(atan2(pNormalized.z, pNormalized.x), -M_PI, M_PI);
+
+    Vector3 lngVec = {cos(lng), 0, sin(lng)};
+
+    double lat = Normalize(Sign(pNormalized.y) * Angle(lngVec, pNormalized) * Deg2Rad, -M_PI / 2,
+                    M_PI / 2);
+    return (GpsCoords){.lat=lat, .lng=lng};
+}
+
+// Seg Index의 중심 좌표의 위도를 계산해서 반환
+FFI_PLUGIN_EXPORT double CalculateSegmentCenterLat(int n, int segmentIndex) {
+    return CalculateLatLng(CalculateSegmentCenter(n, segmentIndex)).lat;
+}
+
+// Seg Index의 중심 좌표의 위도를 계산해서 반환
+FFI_PLUGIN_EXPORT double CalculateSegmentCenterLng(int n, int segmentIndex) {
+    return CalculateLatLng(CalculateSegmentCenter(n, segmentIndex)).lng;
+}
 

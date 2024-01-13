@@ -23,6 +23,8 @@
 FFI_PLUGIN_EXPORT intptr_t sum(intptr_t a, intptr_t b);
 
 FFI_PLUGIN_EXPORT int CalculateSegmentIndexFromLatLng(int n, double lat, double lng);
+FFI_PLUGIN_EXPORT double CalculateSegmentCenterLat(int n, int segmentIndex);
+FFI_PLUGIN_EXPORT double CalculateSegmentCenterLng(int n, int segmentIndex);
 
 // A longer lived native function, which occupies the thread calling it.
 //

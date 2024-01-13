@@ -67,6 +67,38 @@ class SphereUniformGeocodingBindings {
       _CalculateSegmentIndexFromLatLngPtr.asFunction<
           int Function(int, double, double)>();
 
+  double CalculateSegmentCenterLat(
+    int n,
+    int segmentIndex,
+  ) {
+    return _CalculateSegmentCenterLat(
+      n,
+      segmentIndex,
+    );
+  }
+
+  late final _CalculateSegmentCenterLatPtr =
+      _lookup<ffi.NativeFunction<ffi.Double Function(ffi.Int, ffi.Int)>>(
+          'CalculateSegmentCenterLat');
+  late final _CalculateSegmentCenterLat =
+      _CalculateSegmentCenterLatPtr.asFunction<double Function(int, int)>();
+
+  double CalculateSegmentCenterLng(
+    int n,
+    int segmentIndex,
+  ) {
+    return _CalculateSegmentCenterLng(
+      n,
+      segmentIndex,
+    );
+  }
+
+  late final _CalculateSegmentCenterLngPtr =
+      _lookup<ffi.NativeFunction<ffi.Double Function(ffi.Int, ffi.Int)>>(
+          'CalculateSegmentCenterLng');
+  late final _CalculateSegmentCenterLng =
+      _CalculateSegmentCenterLngPtr.asFunction<double Function(int, int)>();
+
   /// A longer lived native function, which occupies the thread calling it.
   ///
   /// Do not call these kind of native functions in the main isolate. They will
