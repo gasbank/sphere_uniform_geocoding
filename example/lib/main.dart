@@ -63,7 +63,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 for (var i = 0; i < 16; i++) ...{
                   Text(
-                    'seg #$i Center: ${sphere_uniform_geocoding.calculateSegmentCenterPos(4, i).toCustomString()} / LL: ${sphere_uniform_geocoding.calculateSegmentCenter(4, i)}',
+                    'seg #$i Center: ${sphere_uniform_geocoding.calculateSegmentCenterPos(8192, i).toCustomString()} / LL: ${sphere_uniform_geocoding.calculateSegmentCenter(8192, i)}',
                     style: textStyle,
                     textAlign: TextAlign.center,
                   ),
