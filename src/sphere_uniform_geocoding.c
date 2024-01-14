@@ -690,8 +690,8 @@ static AbtCoords SplitLocalSegmentIndexToAbt(int n, int localSegmentIndex)
     int b = SearchForB(n, 0, n - 1, localSegmentIndex);
     int a = (localSegmentIndex - CalculateLocalSegmentIndexForB(n, b)) / 2;
     Parallelogram t = !((b % 2 == 0 && localSegmentIndex % 2 == 0) || (b % 2 == 1 && localSegmentIndex % 2 == 1))
-                          ? Parallelogram_Bottom
-                          : Parallelogram_Top;
+                          ? Parallelogram_Top
+                          : Parallelogram_Bottom;
     return (AbtCoords){.a = a, .b = b, .t = t};
 }
 
