@@ -87,13 +87,6 @@ typedef enum
 
 typedef struct
 {
-    double x;
-    double y;
-    double z;
-} Vector3;
-
-typedef struct
-{
     int segGroupIndex;
     EdgeNeighbor edgeNeighbor;
     EdgeNeighborOrigin edgeNeighborOrigin;
@@ -723,7 +716,7 @@ static Vector3 NormalizeVector3(Vector3 v)
 }
 
 // Seg Index의 중심 좌표를 계산해서 반환
-static Vector3 CalculateSegmentCenter(int n, int segmentIndex)
+FFI_PLUGIN_EXPORT Vector3 CalculateSegmentCenter(const int n, const int segmentIndex)
 {
     const SegGroupAndAbt segGroupAndAbt = SplitSegIndexToSegGroupAndAbt(n, segmentIndex);
     //Vector3 segGroupVerts[] = { VertIndexPerFaces[segGroupIndex].Select(e => Vertices[e]).ToArray();
@@ -803,4 +796,22 @@ FFI_PLUGIN_EXPORT double CalculateSegmentCenterLat(int n, int segmentIndex)
 FFI_PLUGIN_EXPORT double CalculateSegmentCenterLng(int n, int segmentIndex)
 {
     return CalculateLatLng(CalculateSegmentCenter(n, segmentIndex)).lng;
+}
+
+// Seg Index의 중심 좌표의 X축을 계산해서 반환
+FFI_PLUGIN_EXPORT double CalculateSegmentCenterX(int n, int segmentIndex)
+{
+    return CalculateSegmentCenter(n, segmentIndex).x;
+}
+
+// Seg Index의 중심 좌표의 Y축을 계산해서 반환
+FFI_PLUGIN_EXPORT double CalculateSegmentCenterY(int n, int segmentIndex)
+{
+    return CalculateSegmentCenter(n, segmentIndex).y;
+}
+
+// Seg Index의 중심 좌표의 Y축을 계산해서 반환
+FFI_PLUGIN_EXPORT double CalculateSegmentCenterZ(int n, int segmentIndex)
+{
+    return CalculateSegmentCenter(n, segmentIndex).z;
 }

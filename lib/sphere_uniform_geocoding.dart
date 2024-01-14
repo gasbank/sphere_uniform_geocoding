@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
@@ -13,10 +12,19 @@ import 'sphere_uniform_geocoding_bindings_generated.dart';
 /// only do this for native functions which are guaranteed to be short-lived.
 int sum(int a, int b) => _bindings.sum(a, b);
 
-int calculateSegmentIndexFromLatLng(int n, double userPosLat, double userPosLng) => _bindings.CalculateSegmentIndexFromLatLng(n, userPosLat, userPosLng);
+int calculateSegmentIndexFromLatLng(
+        int n, double userPosLat, double userPosLng) =>
+    _bindings.CalculateSegmentIndexFromLatLng(n, userPosLat, userPosLng);
 
 (double, double) calculateSegmentCenter(int n, int segmentId) {
-  return (_bindings.CalculateSegmentCenterLat(n, segmentId), _bindings.CalculateSegmentCenterLng(n, segmentId));
+  return (
+    _bindings.CalculateSegmentCenterLat(n, segmentId),
+    _bindings.CalculateSegmentCenterLng(n, segmentId)
+  );
+}
+
+Vector3 calculateSegmentCenterPos(int n, int segmentId) {
+  return _bindings.CalculateSegmentCenter(n, segmentId);
 }
 
 /// A longer lived native function, which occupies the thread calling it.
@@ -56,8 +64,8 @@ final DynamicLibrary _dylib = () {
 }();
 
 /// The bindings to the native functions in [_dylib].
-final SphereUniformGeocodingBindings _bindings = SphereUniformGeocodingBindings(_dylib);
-
+final SphereUniformGeocodingBindings _bindings =
+    SphereUniformGeocodingBindings(_dylib);
 
 /// A request to compute `sum`.
 ///
@@ -135,3 +143,10 @@ Future<SendPort> _helperIsolateSendPort = () async {
   // can start sending requests.
   return completer.future;
 }();
+
+extension Vector3Extension on Vector3 {
+  String toCustomString() {
+    const fractionDigits = 2;
+    return '(${x.toStringAsFixed(fractionDigits)}, ${y.toStringAsFixed(fractionDigits)}, ${z.toStringAsFixed(fractionDigits)})';
+  }
+}

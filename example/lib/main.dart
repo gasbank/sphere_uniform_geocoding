@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:sphere_uniform_geocoding/sphere_uniform_geocoding.dart' as sphere_uniform_geocoding;
+import 'package:flutter/material.dart';
+import 'package:sphere_uniform_geocoding/sphere_uniform_geocoding.dart'
+    as sphere_uniform_geocoding;
 
 void main() {
   runApp(const MyApp());
@@ -17,15 +18,14 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late int sumResult;
   late int calculateSegmentIndexFromLatLngResult;
-  late (double, double) calculateSegmentCenterResult;
   late Future<int> sumAsyncResult;
 
   @override
   void initState() {
     super.initState();
     sumResult = sphere_uniform_geocoding.sum(1, 2);
-    calculateSegmentIndexFromLatLngResult = sphere_uniform_geocoding.calculateSegmentIndexFromLatLng(4, 0, 0);
-    calculateSegmentCenterResult = sphere_uniform_geocoding.calculateSegmentCenter(4, 0);
+    calculateSegmentIndexFromLatLngResult =
+        sphere_uniform_geocoding.calculateSegmentIndexFromLatLng(4, 0, 0);
     sumAsyncResult = sphere_uniform_geocoding.sumAsync(3, 4);
   }
 
@@ -42,6 +42,7 @@ class _MyAppState extends State<MyApp> {
           child: Container(
             padding: const EdgeInsets.all(10),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'This calls a native function through FFI that is shipped as source in the package. '
@@ -60,11 +61,13 @@ class _MyAppState extends State<MyApp> {
                   style: textStyle,
                   textAlign: TextAlign.center,
                 ),
-                Text(
-                  'calculateSegmentCenterResult(4, 0) = $calculateSegmentCenterResult',
-                  style: textStyle,
-                  textAlign: TextAlign.center,
-                ),
+                for (var i = 0; i < 16; i++) ...{
+                  Text(
+                    'seg #$i Center: ${sphere_uniform_geocoding.calculateSegmentCenterPos(4, i).toCustomString()} / LL: ${sphere_uniform_geocoding.calculateSegmentCenter(4, i)}',
+                    style: textStyle,
+                    textAlign: TextAlign.center,
+                  ),
+                },
                 spacerSmall,
                 FutureBuilder<int>(
                   future: sumAsyncResult,

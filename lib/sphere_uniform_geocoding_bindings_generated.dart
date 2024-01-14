@@ -99,6 +99,22 @@ class SphereUniformGeocodingBindings {
   late final _CalculateSegmentCenterLng =
       _CalculateSegmentCenterLngPtr.asFunction<double Function(int, int)>();
 
+  Vector3 CalculateSegmentCenter(
+    int n,
+    int segmentIndex,
+  ) {
+    return _CalculateSegmentCenter(
+      n,
+      segmentIndex,
+    );
+  }
+
+  late final _CalculateSegmentCenterPtr =
+      _lookup<ffi.NativeFunction<Vector3 Function(ffi.Int, ffi.Int)>>(
+          'CalculateSegmentCenter');
+  late final _CalculateSegmentCenter =
+      _CalculateSegmentCenterPtr.asFunction<Vector3 Function(int, int)>();
+
   /// A longer lived native function, which occupies the thread calling it.
   ///
   /// Do not call these kind of native functions in the main isolate. They will
@@ -119,4 +135,15 @@ class SphereUniformGeocodingBindings {
           'sum_long_running');
   late final _sum_long_running =
       _sum_long_runningPtr.asFunction<int Function(int, int)>();
+}
+
+final class Vector3 extends ffi.Struct {
+  @ffi.Double()
+  external double x;
+
+  @ffi.Double()
+  external double y;
+
+  @ffi.Double()
+  external double z;
 }

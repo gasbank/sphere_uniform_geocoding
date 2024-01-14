@@ -15,6 +15,14 @@
 #define FFI_PLUGIN_EXPORT
 #endif
 
+
+typedef struct
+{
+    double x;
+    double y;
+    double z;
+} Vector3;
+
 // A very short-lived native function.
 //
 // For very short-lived functions, it is fine to call them on the main isolate.
@@ -25,6 +33,7 @@ FFI_PLUGIN_EXPORT intptr_t sum(intptr_t a, intptr_t b);
 FFI_PLUGIN_EXPORT int CalculateSegmentIndexFromLatLng(int n, double lat, double lng);
 FFI_PLUGIN_EXPORT double CalculateSegmentCenterLat(int n, int segmentIndex);
 FFI_PLUGIN_EXPORT double CalculateSegmentCenterLng(int n, int segmentIndex);
+FFI_PLUGIN_EXPORT Vector3 CalculateSegmentCenter(const int n, const int segmentIndex);
 
 // A longer lived native function, which occupies the thread calling it.
 //
