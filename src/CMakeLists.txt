@@ -9,6 +9,11 @@ add_library(sphere_uniform_geocoding SHARED
   "sphere_uniform_geocoding.c"
 )
 
+add_executable(sphere_uniform_geocoding_test
+  "sphere_uniform_geocoding.c"
+  "main.c"
+)
+
 set_target_properties(sphere_uniform_geocoding PROPERTIES
   PUBLIC_HEADER sphere_uniform_geocoding.h
   OUTPUT_NAME "sphere_uniform_geocoding"
