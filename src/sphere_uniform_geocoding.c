@@ -547,6 +547,11 @@ static int ConvertToLocalSegmentIndex(int n, int a, int b, Parallelogram top)
     return parallelogramIndex * 2 - b + (top ? 1 : 0);
 }
 
+static int ConvertToLocalSegmentIndex2(int n, AbtCoords abtCoords)
+{
+    return ConvertToLocalSegmentIndex(n, abtCoords.a, abtCoords.b, abtCoords.t);
+}
+
 static int ConvertToSegmentIndex2(int segmentGroupIndex, int localSegmentIndex)
 {
     return (segmentGroupIndex << LocalSegmentIndexBitCount) | localSegmentIndex;
@@ -807,4 +812,480 @@ FFI_PLUGIN_EXPORT double CalculateSegmentCenterY(int n, int segmentIndex)
 FFI_PLUGIN_EXPORT double CalculateSegmentCenterZ(int n, int segmentIndex)
 {
     return CalculateSegmentCenter(n, segmentIndex).z;
+}
+
+const AbtCoords NeighborOffsetSubdivisionOne[] = {
+        // 하단 행
+        {0, -1, Parallelogram_Bottom},
+        {0, -1, Parallelogram_Top},
+        {1, -1, Parallelogram_Bottom},
+        // 지금 행
+        {-1, 0, Parallelogram_Bottom},
+        {-1, 0, Parallelogram_Top},
+        {0, 0, Parallelogram_Top},
+        {1, 0, Parallelogram_Bottom},
+        // 상단 행
+        {-1, 1, Parallelogram_Bottom},
+        {0, 1, Parallelogram_Bottom},
+};
+
+const AbtCoords NeighborOffsetTop[] = {
+        // 하단 행
+        {0, -1, Parallelogram_Top},
+        {1, -1, Parallelogram_Bottom},
+        {1, -1, Parallelogram_Top},
+        // 지금 행
+        {-1, 0, Parallelogram_Top},
+        {0, 0, Parallelogram_Bottom},
+        {1, 0, Parallelogram_Bottom},
+        {1, 0, Parallelogram_Top},
+        // 상단 행
+        {-1, 1, Parallelogram_Bottom},
+        {-1, 1, Parallelogram_Top},
+        {0, 1, Parallelogram_Bottom},
+        {0, 1, Parallelogram_Top},
+        {1, 1, Parallelogram_Bottom},
+};
+
+const AbtCoords NeighborOffsetBottom[] = {
+        // 하단 행
+        {-1, -1, Parallelogram_Top},
+        {0, -1, Parallelogram_Bottom},
+        {0, -1, Parallelogram_Top},
+        {1, -1, Parallelogram_Bottom},
+        {1, -1, Parallelogram_Top},
+        // 지금 행
+        {-1, 0, Parallelogram_Bottom},
+        {-1, 0, Parallelogram_Top},
+        {0, 0, Parallelogram_Top},
+        {1, 0, Parallelogram_Bottom},
+        // 상단 행
+        {-1, 1, Parallelogram_Bottom},
+        {-1, 1, Parallelogram_Top},
+        {0, 1, Parallelogram_Bottom},
+};
+
+typedef enum {
+    SegmentGroupNeighbor_Inside,
+    SegmentGroupNeighbor_O,
+    SegmentGroupNeighbor_A,
+    SegmentGroupNeighbor_B,
+    SegmentGroupNeighbor_OA,
+    SegmentGroupNeighbor_OB,
+    SegmentGroupNeighbor_AO,
+    SegmentGroupNeighbor_AB,
+    SegmentGroupNeighbor_BO,
+    SegmentGroupNeighbor_BA,
+    SegmentGroupNeighbor_Outside,
+    SegmentGroupNeighbor_Error,
+} SegmentGroupNeighbor;
+
+typedef struct {
+    SegmentGroupNeighbor segGroupNeighbor;
+    AbtCoords abt;
+} SegmentGroupNeighborAndAbt;
+
+typedef struct
+{
+    SegmentGroupNeighborAndAbt segGroupNeighborAbt[12];
+    int count;
+} LocalNeighborSegList;
+
+typedef enum
+{
+    ParallelogramGroup_Bottom,
+    ParallelogramGroup_Top,
+    ParallelogramGroup_Outside,
+    ParallelogramGroup_Error,
+} ParallelogramGroup;
+
+// ABT 좌표계가 가리키는 위치가 평행사변형의 상단인지 하단인지 판단하여 반환한다.
+// 상단이면 true, 하단이면 false를 반환하며, 범위를 벗어나는 경우에는 예외를 던진다.
+static ParallelogramGroup CheckBottomOrTopFromParallelogram(int n, AbtCoords abtCoords) {
+    if (n < 1) {
+        //throw new ArgumentOutOfRangeException(nameof(n));
+        return ParallelogramGroup_Error;
+    }
+
+    if (abtCoords.a < 0 || abtCoords.a >= n || abtCoords.b < 0 || abtCoords.b >= n) {
+        return ParallelogramGroup_Outside;
+    }
+
+    if (abtCoords.a + abtCoords.b < n - 1) {
+        return ParallelogramGroup_Bottom;
+    }
+
+    return abtCoords.a + abtCoords.b != n - 1
+        || abtCoords.t == Parallelogram_Top ? ParallelogramGroup_Top : ParallelogramGroup_Bottom;
+}
+
+// ABT 좌표가 어떤 SegmentGroupNeighbor에 속하는지를 체크해서 반환한다.
+static SegmentGroupNeighbor CheckSegmentGroupNeighbor(int n, AbtCoords abtCoords) {
+    switch (CheckBottomOrTopFromParallelogram(n, abtCoords)) {
+        case ParallelogramGroup_Bottom:
+            return SegmentGroupNeighbor_Inside;
+        case ParallelogramGroup_Top:
+            return SegmentGroupNeighbor_O;
+        case ParallelogramGroup_Outside:
+            switch (CheckBottomOrTopFromParallelogram(n, (AbtCoords){abtCoords.a - n, abtCoords.b, abtCoords.t})) {
+                case ParallelogramGroup_Bottom:
+                    return SegmentGroupNeighbor_OB;
+                case ParallelogramGroup_Top:
+                    return SegmentGroupNeighbor_Outside;
+                case ParallelogramGroup_Outside:
+                    break;
+                default:
+                    //throw new ArgumentOutOfRangeException();
+                    return SegmentGroupNeighbor_Error;
+            }
+
+            switch (CheckBottomOrTopFromParallelogram(n, (AbtCoords){abtCoords.a + n, abtCoords.b, abtCoords.t})) {
+                case ParallelogramGroup_Bottom:
+                    return SegmentGroupNeighbor_AB;
+                case ParallelogramGroup_Top:
+                    return SegmentGroupNeighbor_A;
+                case ParallelogramGroup_Outside:
+                    break;
+                default:
+                    //throw new ArgumentOutOfRangeException();
+                    return SegmentGroupNeighbor_Error;
+            }
+
+            switch (CheckBottomOrTopFromParallelogram(n, (AbtCoords){abtCoords.a, abtCoords.b - n, abtCoords.t})) {
+                case ParallelogramGroup_Bottom:
+                    return SegmentGroupNeighbor_OA;
+                case ParallelogramGroup_Top:
+                    return SegmentGroupNeighbor_Outside;
+                case ParallelogramGroup_Outside:
+                    break;
+                default:
+                    //throw new ArgumentOutOfRangeException();
+                    return SegmentGroupNeighbor_Error;
+            }
+
+            switch (CheckBottomOrTopFromParallelogram(n, (AbtCoords){abtCoords.a, abtCoords.b + n, abtCoords.t})) {
+                case ParallelogramGroup_Bottom:
+                    return SegmentGroupNeighbor_BA;
+                case ParallelogramGroup_Top:
+                    return SegmentGroupNeighbor_B;
+                case ParallelogramGroup_Outside:
+                    break;
+                default:
+                    //throw new ArgumentOutOfRangeException();
+                    return SegmentGroupNeighbor_Error;
+            }
+
+            switch (CheckBottomOrTopFromParallelogram(n, (AbtCoords){abtCoords.a + n, abtCoords.b - n, abtCoords.t})) {
+                case ParallelogramGroup_Bottom:
+                    return SegmentGroupNeighbor_AO;
+                case ParallelogramGroup_Top:
+                    return SegmentGroupNeighbor_Outside;
+                case ParallelogramGroup_Outside:
+                    break;
+                default:
+                    //throw new ArgumentOutOfRangeException();
+                    return SegmentGroupNeighbor_Error;
+            }
+
+            switch (CheckBottomOrTopFromParallelogram(n, (AbtCoords){abtCoords.a - n, abtCoords.b + n, abtCoords.t})) {
+                case ParallelogramGroup_Bottom:
+                    return SegmentGroupNeighbor_BO;
+                case ParallelogramGroup_Top:
+                    return SegmentGroupNeighbor_Outside;
+                case ParallelogramGroup_Outside:
+                    return SegmentGroupNeighbor_Outside;
+                default:
+                    //throw new ArgumentOutOfRangeException();
+                    return SegmentGroupNeighbor_Error;
+            }
+        default:
+            //throw new ArgumentOutOfRangeException();
+            return SegmentGroupNeighbor_Error;
+    }
+}
+
+// 하나의 세그먼트 그룹을 벗어나 인접한 세그먼트 그룹 내 세그먼트를 가리키는
+// ABT 좌표를 인접한 세그먼트 그룹과 해당 세그먼트 그룹 내의 유효한 ABT 좌표로 변환하여 반환한다.
+static SegmentGroupNeighborAndAbt ConvertAbtToNeighborAbt(int n, AbtCoords abtCoords) {
+
+    if (n < 1) {
+        //throw new ArgumentOutOfRangeException(nameof(n));
+        return (SegmentGroupNeighborAndAbt){
+            .segGroupNeighbor = SegmentGroupNeighbor_Error, .abt = {INT32_MIN, INT32_MIN, Parallelogram_Error},
+        };
+    }
+
+    const SegmentGroupNeighbor segmentGroupNeighbor = CheckSegmentGroupNeighbor(n, abtCoords);
+    return (SegmentGroupNeighborAndAbt){
+            .segGroupNeighbor = segmentGroupNeighbor, .abt = abtCoords,
+    };
+}
+
+static LocalNeighborSegList GetLocalSegmentIndexNeighborsAsAbtCase3Bottom(int n, AbtCoords abCoords /* t 안씀 */) {
+    int skipIndex = -1;
+    if (abCoords.a == 0 && abCoords.b == 0) {
+        skipIndex = 0;
+    } else if (abCoords.a == n - 1 && abCoords.b == 0) {
+        skipIndex = 4;
+    } else if (abCoords.a == 0 && abCoords.b == n - 1) {
+        skipIndex = 10;
+    }
+    
+    LocalNeighborSegList ret = {.count = 0};
+    for (int i = 0; i < NELEMS(NeighborOffsetBottom); i++) {
+        if (i == skipIndex) {
+            continue;
+        }
+        const AbtCoords d = NeighborOffsetBottom[i];
+        ret.segGroupNeighborAbt[ret.count] = ConvertAbtToNeighborAbt(n, (AbtCoords){abCoords.a + d.a, abCoords.b + d.b, d.t});
+        ret.count++;
+    }
+    return ret;
+}
+
+static LocalNeighborSegList GetLocalSegmentIndexNeighborsAsAbt(int n, int localSegmentIndex) {
+
+    if (n < 1) {
+        //throw new ArgumentOutOfRangeException(nameof(n));
+        return (LocalNeighborSegList){.count = -1};
+    }
+
+    LocalNeighborSegList ret = {.count = 0};
+    const AbtCoords abtCoords = SplitLocalSegmentIndexToAbt(n, localSegmentIndex);
+
+    // i) 정이십면체 그대로인 상태일 때는 특수한 케이스이다. (테스트 안해봄)
+    if (n == 1) {
+        // n=1일 때는 top, bottom이라는 개념 없이 모두 bottom이다.
+        for (int i = 0; i < NELEMS(NeighborOffsetSubdivisionOne); i++) {
+            const AbtCoords d = NeighborOffsetSubdivisionOne[i];
+            ret.segGroupNeighborAbt[ret.count] = ConvertAbtToNeighborAbt(n, (AbtCoords){abtCoords.a + d.a, abtCoords.b + d.b, d.t});
+            ret.count++;
+        }
+        return ret;
+    }
+
+    // iii) 그 밖의 경우
+    if (abtCoords.t == Parallelogram_Top) {
+        // top인 경우
+        for (int i = 0; i < NELEMS(NeighborOffsetTop); i++) {
+            const AbtCoords d = NeighborOffsetTop[i];
+            ret.segGroupNeighborAbt[ret.count] = ConvertAbtToNeighborAbt(n, (AbtCoords){abtCoords.a + d.a, abtCoords.b + d.b, d.t});
+            ret.count++;
+        }
+        return ret;
+    }
+
+    // bottom인 경우에는 코너인지 아닌지에 따라서도 처리가 달라진다.
+    return GetLocalSegmentIndexNeighborsAsAbtCase3Bottom(n, abtCoords);
+}
+
+static AbtCoords Swap(int a, int b, Parallelogram t, int swap) {
+    return !swap ? (AbtCoords){a, b, t} : (AbtCoords){b, a, t};
+}
+
+static AbtCoords ConvertCoordinate(AxisOrientation baseAxisOrientation, EdgeNeighbor edgeNeighbor,
+                                   EdgeNeighborOrigin edgeNeighborOrigin, AxisOrientation axisOrientation, int n, AbtCoords abtCoords) {
+    const int a = abtCoords.a;
+    const int b = abtCoords.b;
+    const int tv = abtCoords.t == Parallelogram_Top ? 1 : 0;
+    const Parallelogram tInvert = abtCoords.t == Parallelogram_Bottom ? Parallelogram_Top : Parallelogram_Bottom;
+    int swap = baseAxisOrientation != axisOrientation;
+
+    switch (edgeNeighbor) {
+        case EdgeNeighbor_O:
+            switch (edgeNeighborOrigin) {
+                case EdgeNeighborOrigin_A:
+                    return Swap(a + b + tv - n, -a + (n - 1), tInvert, swap);
+                case EdgeNeighborOrigin_B:
+                    return Swap(-b + (n - 1), a + b + tv - n, tInvert, swap);
+                case EdgeNeighborOrigin_Op:
+                    return Swap(-a + (n - 1), -b + (n - 1), tInvert, swap);
+                case EdgeNeighborOrigin_O:
+                case EdgeNeighborOrigin_Ap:
+                case EdgeNeighborOrigin_Bp:
+                default:
+                    //throw new ArgumentOutOfRangeException(nameof(edgeNeighborOrigin), edgeNeighborOrigin, null);
+                    return (AbtCoords){.a = INT32_MIN, .b = INT32_MIN, .t = Parallelogram_Error};
+            }
+        case EdgeNeighbor_A:
+            switch (edgeNeighborOrigin) {
+                case EdgeNeighborOrigin_Ap:
+                    return Swap(-b + (n - 1), a + b + tv, tInvert, swap);
+                case EdgeNeighborOrigin_B:
+                    return Swap(-a - 1, -b + (n - 1), tInvert, swap);
+                case EdgeNeighborOrigin_O:
+                    return Swap(a + b + tv, -a - 1, tInvert, swap);
+                case EdgeNeighborOrigin_A:
+                case EdgeNeighborOrigin_Bp:
+                case EdgeNeighborOrigin_Op:
+                default:
+                    //throw new ArgumentOutOfRangeException(nameof(edgeNeighborOrigin), edgeNeighborOrigin, null);
+                    return (AbtCoords){.a = INT32_MIN, .b = INT32_MIN, .t = Parallelogram_Error};
+            }
+        case EdgeNeighbor_B:
+            switch (edgeNeighborOrigin) {
+                case EdgeNeighborOrigin_A:
+                    return Swap(-a + (n - 1), -b - 1, tInvert, swap);
+                case EdgeNeighborOrigin_Bp:
+                    return Swap(a + b + tv, -a + (n - 1), tInvert, swap);
+                case EdgeNeighborOrigin_O:
+                    return Swap(-b - 1, a + b + tv, tInvert, swap);
+                case EdgeNeighborOrigin_Ap:
+                case EdgeNeighborOrigin_B:
+                case EdgeNeighborOrigin_Op:
+                default:
+                    //throw new ArgumentOutOfRangeException(nameof(edgeNeighborOrigin), edgeNeighborOrigin, null);
+                    return (AbtCoords){.a = INT32_MIN, .b = INT32_MIN, .t = Parallelogram_Error};
+            }
+        default:
+            //throw new ArgumentOutOfRangeException(nameof(edgeNeighbor), edgeNeighbor, null);
+            return (AbtCoords){.a = INT32_MIN, .b = INT32_MIN, .t = Parallelogram_Error};
+    }
+}
+
+static AbtCoords ConvertCoordinate2(AxisOrientation baseAxisOrientation, NeighborInfo neighborInfo, int n, AbtCoords abtCoords) {
+    return ConvertCoordinate(baseAxisOrientation, neighborInfo.edgeNeighbor, neighborInfo.edgeNeighborOrigin, neighborInfo.axisOrientation, n, abtCoords);
+}
+
+static int ConvertCoordinateByNeighborInfo(const AxisOrientation baseAxisOrientation, const NeighborInfo neighborInfo, int n, AbtCoords neighborAbt) {
+    const AbtCoords convertedAbt = ConvertCoordinate(baseAxisOrientation, neighborInfo.edgeNeighbor, neighborInfo.edgeNeighborOrigin, neighborInfo.axisOrientation, n,neighborAbt);
+    const int convertedNeighborLocalSegIndex = ConvertToLocalSegmentIndex(n, convertedAbt.a, convertedAbt.b, convertedAbt.t);
+    const int convertedNeighborSegIndex = ConvertToSegmentIndex2(neighborInfo.segGroupIndex, convertedNeighborLocalSegIndex);
+    return convertedNeighborSegIndex;
+}
+
+static NeighborInfo GetNeighbor2SegGroupIndex(const int segGroupIndex, const int n1Index, const int n2Index) {
+    const int* segGroupVertIndexList = VertIndexPerFaces[segGroupIndex];
+    const NeighborInfo n1Info = NeighborFaceInfoList[segGroupIndex][n1Index];
+    const NeighborInfo* n2InfoList = NeighborFaceInfoList[n1Info.segGroupIndex];
+    for (int i = 0; i < 3; i++) {
+        const NeighborInfo* n2Info = n2InfoList + i;
+        if (n2Info->segGroupIndex != segGroupIndex) {
+            int contains = 0;
+            for (int j = 0; j < 3; j++) {
+                if (VertIndexPerFaces[n2Info->segGroupIndex][j] == segGroupVertIndexList[n2Index]) {
+                    contains = 1;
+                    break;
+                }
+            }
+            if (contains == 0) {
+                return *n2Info;
+            }
+        }
+    }
+    return (NeighborInfo){.segGroupIndex=INT32_MIN};
+}
+
+static NeighborInfo GetNeighborInfoOfSegGroupIndex(const int segGroupIndex, const SegmentGroupNeighbor neighbor) {
+    if (segGroupIndex < 0 || segGroupIndex >= 20) {
+        // throw new ArgumentOutOfRangeException(nameof(segGroupIndex), segGroupIndex, null);
+        return (NeighborInfo){.segGroupIndex=INT32_MIN};
+    }
+
+    switch (neighbor) {
+        case SegmentGroupNeighbor_Inside:
+            //throw new ArgumentException(nameof(neighbor));
+            return (NeighborInfo){.segGroupIndex=INT32_MIN};
+        case SegmentGroupNeighbor_O:
+            return NeighborFaceInfoList[segGroupIndex][0];
+        case SegmentGroupNeighbor_A:
+            return NeighborFaceInfoList[segGroupIndex][1];
+        case SegmentGroupNeighbor_B:
+            return NeighborFaceInfoList[segGroupIndex][2];
+        case SegmentGroupNeighbor_OA:
+            return GetNeighbor2SegGroupIndex(segGroupIndex, 0, 1);
+        case SegmentGroupNeighbor_OB:
+            return GetNeighbor2SegGroupIndex(segGroupIndex, 0, 2);
+        case SegmentGroupNeighbor_AO:
+            return GetNeighbor2SegGroupIndex(segGroupIndex, 1, 0);
+        case SegmentGroupNeighbor_AB:
+            return GetNeighbor2SegGroupIndex(segGroupIndex, 1, 2);
+        case SegmentGroupNeighbor_BO:
+            return GetNeighbor2SegGroupIndex(segGroupIndex, 2, 0);
+        case SegmentGroupNeighbor_BA:
+            return GetNeighbor2SegGroupIndex(segGroupIndex, 2, 1);
+        case SegmentGroupNeighbor_Outside:
+        default:
+            //throw new ArgumentOutOfRangeException(nameof(neighbor), neighbor, null);
+            return (NeighborInfo){.segGroupIndex=INT32_MIN};
+    }
+}
+
+// 세그먼트 그룹 내에서 완전히 모든 이웃 세그먼트가 찾아지지 않고,
+// 세그먼트 그룹 경계를 벗어나는 이웃이 포함되는 경우에
+// 이웃 세그먼트 인덱스를 모두 반환한다.
+// 여러 세그먼트 그룹에 걸쳐야하므로, 세그먼트 서브 인덱스로 조회할 수는 없다.
+FFI_PLUGIN_EXPORT NeighborSegIdList GetNeighborsOfSegmentIndex(const int n, const int segmentIndex) {
+    const SegGroupAndLocalSegIndex segGroupAndLocalSegIndex = SplitSegIndexToSegGroupAndLocalSegmentIndex(segmentIndex);
+    const int segGroupIndex = segGroupAndLocalSegIndex.segGroup;
+    const int localSegmentIndex = segGroupAndLocalSegIndex.localSegIndex;
+
+    const AxisOrientation baseAxisOrientation = FaceAxisOrientationList[segGroupIndex];
+
+    NeighborSegIdList neighborSegIndexList = {.count = 0};
+    const NeighborInfo* neighborInfo = NeighborFaceInfoList[segGroupIndex];
+
+    LocalNeighborSegList neighborsAsRelativeAbt = GetLocalSegmentIndexNeighborsAsAbt(n, localSegmentIndex);
+
+    for (int i = 0; i < neighborsAsRelativeAbt.count; i++) {
+        const SegmentGroupNeighbor neighbor = neighborsAsRelativeAbt.segGroupNeighborAbt[i].segGroupNeighbor;
+        const AbtCoords neighborAbt = neighborsAsRelativeAbt.segGroupNeighborAbt[i].abt;
+        switch (neighbor) {
+            case SegmentGroupNeighbor_Inside: {
+                int neighborLocalSegIndex = ConvertToSegmentIndex2(segGroupIndex, ConvertToLocalSegmentIndex2(n, neighborAbt));
+
+                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = ConvertToSegmentIndex2(segGroupIndex, neighborLocalSegIndex);
+                neighborSegIndexList.count++;
+                break;
+            }
+            case SegmentGroupNeighbor_O:
+                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = ConvertCoordinateByNeighborInfo(baseAxisOrientation, neighborInfo[0], n, neighborAbt);
+                neighborSegIndexList.count++;
+                break;
+            case SegmentGroupNeighbor_A:
+                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = ConvertCoordinateByNeighborInfo(baseAxisOrientation, neighborInfo[1], n, neighborAbt);
+                neighborSegIndexList.count++;
+                break;
+            case SegmentGroupNeighbor_B:
+                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = ConvertCoordinateByNeighborInfo(baseAxisOrientation, neighborInfo[2], n, neighborAbt);
+                neighborSegIndexList.count++;
+                break;
+            case SegmentGroupNeighbor_OA:
+            case SegmentGroupNeighbor_OB: {
+                NeighborInfo neighbor1Info = GetNeighborInfoOfSegGroupIndex(segGroupIndex, SegmentGroupNeighbor_O);
+                AbtCoords neighborAbt1 = ConvertCoordinate2(baseAxisOrientation, neighbor1Info, n, neighborAbt);
+                NeighborInfo neighbor2Info = GetNeighborInfoOfSegGroupIndex(segGroupIndex, neighbor);
+
+                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = ConvertCoordinateByNeighborInfo(baseAxisOrientation, neighbor2Info, n, neighborAbt1);
+                neighborSegIndexList.count++;
+                break;
+            }
+            case SegmentGroupNeighbor_AO:
+            case SegmentGroupNeighbor_AB: {
+                NeighborInfo neighbor1Info = GetNeighborInfoOfSegGroupIndex(segGroupIndex, SegmentGroupNeighbor_A);
+                AbtCoords neighborAbt1 = ConvertCoordinate2(baseAxisOrientation, neighbor1Info, n, neighborAbt);
+                NeighborInfo neighbor2Info = GetNeighborInfoOfSegGroupIndex(segGroupIndex, neighbor);
+
+                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = ConvertCoordinateByNeighborInfo(baseAxisOrientation, neighbor2Info, n, neighborAbt1);
+                neighborSegIndexList.count++;
+                break;
+            }
+            case SegmentGroupNeighbor_BO:
+            case SegmentGroupNeighbor_BA: {
+                NeighborInfo neighbor1Info = GetNeighborInfoOfSegGroupIndex(segGroupIndex, SegmentGroupNeighbor_B);
+                AbtCoords neighborAbt1 = ConvertCoordinate2(baseAxisOrientation, neighbor1Info, n, neighborAbt);
+                NeighborInfo neighbor2Info = GetNeighborInfoOfSegGroupIndex(segGroupIndex, neighbor);
+
+                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = ConvertCoordinateByNeighborInfo(baseAxisOrientation, neighbor2Info, n, neighborAbt1);
+                neighborSegIndexList.count++;
+                break;
+            }
+            case SegmentGroupNeighbor_Outside:
+            default:
+                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = INT32_MIN;
+                neighborSegIndexList.count++;
+        }
+    }
+
+    return neighborSegIndexList;
 }

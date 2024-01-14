@@ -18,6 +18,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late int sumResult;
   late int calculateSegmentIndexFromLatLngResult;
+  late List<int> getNeighborsOfSegmentIndexResult;
   late Future<int> sumAsyncResult;
 
   @override
@@ -26,6 +27,7 @@ class _MyAppState extends State<MyApp> {
     sumResult = sphere_uniform_geocoding.sum(1, 2);
     calculateSegmentIndexFromLatLngResult =
         sphere_uniform_geocoding.calculateSegmentIndexFromLatLng(4, 0, 0);
+    getNeighborsOfSegmentIndexResult = sphere_uniform_geocoding.getNeighborsOfSegmentIndex(4, 0);
     sumAsyncResult = sphere_uniform_geocoding.sumAsync(3, 4);
   }
 
@@ -58,6 +60,11 @@ class _MyAppState extends State<MyApp> {
                 ),
                 Text(
                   'calculateSegmentIndexFromLatLngResult(4, 0, 0) = $calculateSegmentIndexFromLatLngResult',
+                  style: textStyle,
+                  textAlign: TextAlign.center,
+                ),
+                Text(
+                  'getNeighborsOfSegmentIndexResult(4, 0) = $getNeighborsOfSegmentIndexResult',
                   style: textStyle,
                   textAlign: TextAlign.center,
                 ),

@@ -115,6 +115,22 @@ class SphereUniformGeocodingBindings {
   late final _CalculateSegmentCenter =
       _CalculateSegmentCenterPtr.asFunction<Vector3 Function(int, int)>();
 
+  NeighborSegIdList GetNeighborsOfSegmentIndex(
+    int n,
+    int segmentIndex,
+  ) {
+    return _GetNeighborsOfSegmentIndex(
+      n,
+      segmentIndex,
+    );
+  }
+
+  late final _GetNeighborsOfSegmentIndexPtr =
+      _lookup<ffi.NativeFunction<NeighborSegIdList Function(ffi.Int, ffi.Int)>>(
+          'GetNeighborsOfSegmentIndex');
+  late final _GetNeighborsOfSegmentIndex = _GetNeighborsOfSegmentIndexPtr
+      .asFunction<NeighborSegIdList Function(int, int)>();
+
   /// A longer lived native function, which occupies the thread calling it.
   ///
   /// Do not call these kind of native functions in the main isolate. They will
@@ -146,4 +162,12 @@ final class Vector3 extends ffi.Struct {
 
   @ffi.Double()
   external double z;
+}
+
+final class NeighborSegIdList extends ffi.Struct {
+  @ffi.Array.multi([12])
+  external ffi.Array<ffi.Int> neighborSegId;
+
+  @ffi.Int()
+  external int count;
 }

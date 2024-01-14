@@ -27,6 +27,15 @@ Vector3 calculateSegmentCenterPos(int n, int segmentId) {
   return _bindings.CalculateSegmentCenter(n, segmentId);
 }
 
+List<int> getNeighborsOfSegmentIndex(int n, int segmentId) {
+  final segIdList = _bindings.GetNeighborsOfSegmentIndex(n, segmentId);
+  final ret = <int>[];
+  for (var i = 0; i < segIdList.count; i++) {
+    ret.add(segIdList.neighborSegId[i]);
+  }
+  return ret;
+}
+
 /// A longer lived native function, which occupies the thread calling it.
 ///
 /// Do not call these kind of native functions in the main isolate. They will
