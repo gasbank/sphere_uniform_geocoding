@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:sphere_uniform_geocoding/sphere_uniform_geocoding.dart'
     as sphere_uniform_geocoding;
+import 'package:sphere_uniform_geocoding/sphere_uniform_geocoding_bindings_generated.dart';
 
 void main() {
   runApp(const MyApp());
@@ -18,6 +19,8 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late int sumResult;
   late int calculateSegmentIndexFromLatLngResult;
+  late int convertToSegmentIndex2Result;
+  late SegGroupAndLocalSegIndex splitSegIndexToSegGroupAndLocalSegmentIndexResult;
   late List<int> getNeighborsOfSegmentIndexResult;
   late Future<int> sumAsyncResult;
 
@@ -25,9 +28,15 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     sumResult = sphere_uniform_geocoding.sum(1, 2);
+
     calculateSegmentIndexFromLatLngResult =
         sphere_uniform_geocoding.calculateSegmentIndexFromLatLng(4, 0, 0);
     getNeighborsOfSegmentIndexResult = sphere_uniform_geocoding.getNeighborsOfSegmentIndex(4, 0);
+
+    const int subdivisionCount = 14654;
+    convertToSegmentIndex2Result = sphere_uniform_geocoding.convertToSegmentIndex2(subdivisionCount, 19, subdivisionCount*subdivisionCount-1);
+    splitSegIndexToSegGroupAndLocalSegmentIndexResult = sphere_uniform_geocoding.splitSegIndexToSegGroupAndLocalSegmentIndex(subdivisionCount, convertToSegmentIndex2Result);
+
     sumAsyncResult = sphere_uniform_geocoding.sumAsync(3, 4);
   }
 
@@ -60,6 +69,16 @@ class _MyAppState extends State<MyApp> {
                 ),
                 Text(
                   'calculateSegmentIndexFromLatLngResult(4, 0, 0) = $calculateSegmentIndexFromLatLngResult',
+                  style: textStyle,
+                  textAlign: TextAlign.center,
+                ),
+                Text(
+                  'convertToSegmentIndex2Result = $convertToSegmentIndex2Result',
+                  style: textStyle,
+                  textAlign: TextAlign.center,
+                ),
+                Text(
+                  'splitSegIndexToSegGroupAndLocalSegmentIndexResult = (segGroup: ${splitSegIndexToSegGroupAndLocalSegmentIndexResult.segGroup}, localSegIndex: ${splitSegIndexToSegGroupAndLocalSegmentIndexResult.localSegIndex})',
                   style: textStyle,
                   textAlign: TextAlign.center,
                 ),

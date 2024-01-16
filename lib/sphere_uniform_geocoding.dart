@@ -36,6 +36,14 @@ List<int> getNeighborsOfSegmentIndex(int n, int segmentId) {
   return ret;
 }
 
+int convertToSegmentIndex2(int n, int segmentGroupIndex, int localSegmentIndex) {
+  return _bindings.ConvertToSegmentIndex2(n, segmentGroupIndex, localSegmentIndex);
+}
+
+SegGroupAndLocalSegIndex splitSegIndexToSegGroupAndLocalSegmentIndex(int n, int segmentIndex) {
+  return _bindings.SplitSegIndexToSegGroupAndLocalSegmentIndex(n, segmentIndex);
+}
+
 /// A longer lived native function, which occupies the thread calling it.
 ///
 /// Do not call these kind of native functions in the main isolate. They will

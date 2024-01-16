@@ -29,6 +29,12 @@ typedef struct
     int count;
 } NeighborSegIdList;
 
+typedef struct
+{
+    int segGroup;
+    int localSegIndex;
+} SegGroupAndLocalSegIndex;
+
 // A very short-lived native function.
 //
 // For very short-lived functions, it is fine to call them on the main isolate.
@@ -41,6 +47,8 @@ FFI_PLUGIN_EXPORT double CalculateSegmentCenterLat(int n, int segmentIndex);
 FFI_PLUGIN_EXPORT double CalculateSegmentCenterLng(int n, int segmentIndex);
 FFI_PLUGIN_EXPORT Vector3 CalculateSegmentCenter(const int n, const int segmentIndex);
 FFI_PLUGIN_EXPORT NeighborSegIdList GetNeighborsOfSegmentIndex(const int n, const int segmentIndex);
+FFI_PLUGIN_EXPORT int ConvertToSegmentIndex2(const int n, int segmentGroupIndex, int localSegmentIndex);
+FFI_PLUGIN_EXPORT SegGroupAndLocalSegIndex SplitSegIndexToSegGroupAndLocalSegmentIndex(const int n, const int segmentIndex);
 
 // A longer lived native function, which occupies the thread calling it.
 //

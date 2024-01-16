@@ -1,3 +1,6 @@
+#include <math.h>
+#include <limits.h>
+
 #include "sphere_uniform_geocoding.h"
 
 // A very short-lived native function.
@@ -23,9 +26,6 @@ FFI_PLUGIN_EXPORT intptr_t sum_long_running(intptr_t a, intptr_t b)
     return a + b;
 }
 
-
-#include <math.h>
-
 #define NELEMS(x)  (sizeof(x) / sizeof((x)[0]))
 
 #define Deg2Rad (0.017453292)
@@ -33,7 +33,7 @@ FFI_PLUGIN_EXPORT intptr_t sum_long_running(intptr_t a, intptr_t b)
 #    define M_PI (3.14159265358979323846)
 #endif
 
-#define LocalSegmentIndexBitCount (32 - 1 - 5)
+#define GroupCount (20)
 
 //void calculate_wh(void) {
 //    Hh = 2 / sqrt(10 + 2 * sqrt_5);
@@ -99,12 +99,6 @@ typedef struct
     int segGroup;
     AbtCoords abt;
 } SegGroupAndAbt;
-
-typedef struct
-{
-    int segGroup;
-    int localSegIndex;
-} SegGroupAndLocalSegIndex;
 
 typedef struct
 {
@@ -552,9 +546,22 @@ static int ConvertToLocalSegmentIndex2(int n, AbtCoords abtCoords)
     return ConvertToLocalSegmentIndex(n, abtCoords.a, abtCoords.b, abtCoords.t);
 }
 
-static int ConvertToSegmentIndex2(int segmentGroupIndex, int localSegmentIndex)
+static int CalculateSegmentCountPerGroup(int n) {
+    return n * n;
+}
+
+FFI_PLUGIN_EXPORT int ConvertToSegmentIndex2(const int n, int segmentGroupIndex, int localSegmentIndex)
 {
-    return (segmentGroupIndex << LocalSegmentIndexBitCount) | localSegmentIndex;
+    uint32_t segmentCountPerGroup = CalculateSegmentCountPerGroup(n);
+    if (segmentGroupIndex < 0 || segmentGroupIndex >= GroupCount) {
+        return -1;
+    }
+
+    if (localSegmentIndex < 0 || localSegmentIndex >= segmentCountPerGroup) {
+        return -1;
+    }
+
+    return (int)((int64_t)segmentCountPerGroup * segmentGroupIndex + localSegmentIndex);
 }
 
 // 세그먼트 그룹 인덱스, n(분할 횟수), AB 좌표, top여부 네 개를 조합 해 전역 세그먼트 인덱스를 계산하여 반환한다.
@@ -562,7 +569,7 @@ static int ConvertToSegmentIndex(int segmentGroupIndex, int n, int a, int b, Par
 {
     const int localSegmentIndex = ConvertToLocalSegmentIndex(n, a, b, top);
 
-    return ConvertToSegmentIndex2(segmentGroupIndex, localSegmentIndex);
+    return ConvertToSegmentIndex2(n, segmentGroupIndex, localSegmentIndex);
 }
 
 FFI_PLUGIN_EXPORT int CalculateSegmentIndexFromLatLng(int n, double userPosLat, double userPosLng)
@@ -678,11 +685,37 @@ static int SearchForB(int n, int b0, int b1, int localSegmentIndex)
     return b0;
 }
 
-static SegGroupAndLocalSegIndex SplitSegIndexToSegGroupAndLocalSegmentIndex(int segmentIndex)
-{
-    int segmentGroupIndex = segmentIndex >> LocalSegmentIndexBitCount;
-    int localSegIndex = segmentIndex & ((1 << LocalSegmentIndexBitCount) - 1);
-    return (SegGroupAndLocalSegIndex){.segGroup = segmentGroupIndex, .localSegIndex = localSegIndex};
+FFI_PLUGIN_EXPORT SegGroupAndLocalSegIndex SplitSegIndexToSegGroupAndLocalSegmentIndex(const int n, const int segmentIndex) {
+    if (n < 1) {
+        return (SegGroupAndLocalSegIndex){.segGroup = -1, .localSegIndex = -1};
+    }
+
+    uint32_t segmentCountPerGroup = CalculateSegmentCountPerGroup(n);
+
+    int64_t unsignedMaxSegCount = (int64_t)segmentCountPerGroup * GroupCount;
+
+    if (unsignedMaxSegCount > (int64_t)UINT_MAX + 1) {
+        return (SegGroupAndLocalSegIndex){.segGroup = -1, .localSegIndex = -1};
+    }
+
+    uint32_t unsignedSegmentIndex = (uint32_t)segmentIndex;
+    if (unsignedSegmentIndex >= unsignedMaxSegCount) {
+        return (SegGroupAndLocalSegIndex){.segGroup = -1, .localSegIndex = -1};
+    }
+
+    int quotient = (int)(unsignedSegmentIndex / segmentCountPerGroup);
+    int remainder = (int)(unsignedSegmentIndex % segmentCountPerGroup);
+
+    if (quotient < 0 || quotient >= GroupCount) {
+        return (SegGroupAndLocalSegIndex){.segGroup = -1, .localSegIndex = -1};
+    }
+
+    if (remainder < 0 || remainder >= segmentCountPerGroup) {
+        return (SegGroupAndLocalSegIndex){.segGroup = -1, .localSegIndex = -1};
+    }
+
+    // (segmentGroupIndex, localSegIndex)
+    return (SegGroupAndLocalSegIndex){.segGroup = quotient, .localSegIndex = remainder};
 }
 
 static AbtCoords SplitLocalSegmentIndexToAbt(int n, int localSegmentIndex)
@@ -702,7 +735,7 @@ static AbtCoords SplitLocalSegmentIndexToAbt(int n, int localSegmentIndex)
 
 static SegGroupAndAbt SplitSegIndexToSegGroupAndAbt(const int n, const int segmentIndex)
 {
-    SegGroupAndLocalSegIndex segGroupAndLocalSegIndex = SplitSegIndexToSegGroupAndLocalSegmentIndex(segmentIndex);
+    SegGroupAndLocalSegIndex segGroupAndLocalSegIndex = SplitSegIndexToSegGroupAndLocalSegmentIndex(n, segmentIndex);
     AbtCoords abt = SplitLocalSegmentIndexToAbt(n, segGroupAndLocalSegIndex.localSegIndex);
     return (SegGroupAndAbt){.segGroup = segGroupAndLocalSegIndex.segGroup, .abt = abt};
 }
@@ -1150,7 +1183,7 @@ static AbtCoords ConvertCoordinate2(AxisOrientation baseAxisOrientation, Neighbo
 static int ConvertCoordinateByNeighborInfo(const AxisOrientation baseAxisOrientation, const NeighborInfo neighborInfo, int n, AbtCoords neighborAbt) {
     const AbtCoords convertedAbt = ConvertCoordinate(baseAxisOrientation, neighborInfo.edgeNeighbor, neighborInfo.edgeNeighborOrigin, neighborInfo.axisOrientation, n,neighborAbt);
     const int convertedNeighborLocalSegIndex = ConvertToLocalSegmentIndex(n, convertedAbt.a, convertedAbt.b, convertedAbt.t);
-    const int convertedNeighborSegIndex = ConvertToSegmentIndex2(neighborInfo.segGroupIndex, convertedNeighborLocalSegIndex);
+    const int convertedNeighborSegIndex = ConvertToSegmentIndex2(n, neighborInfo.segGroupIndex, convertedNeighborLocalSegIndex);
     return convertedNeighborSegIndex;
 }
 
@@ -1216,7 +1249,7 @@ static NeighborInfo GetNeighborInfoOfSegGroupIndex(const int segGroupIndex, cons
 // 이웃 세그먼트 인덱스를 모두 반환한다.
 // 여러 세그먼트 그룹에 걸쳐야하므로, 세그먼트 서브 인덱스로 조회할 수는 없다.
 FFI_PLUGIN_EXPORT NeighborSegIdList GetNeighborsOfSegmentIndex(const int n, const int segmentIndex) {
-    const SegGroupAndLocalSegIndex segGroupAndLocalSegIndex = SplitSegIndexToSegGroupAndLocalSegmentIndex(segmentIndex);
+    const SegGroupAndLocalSegIndex segGroupAndLocalSegIndex = SplitSegIndexToSegGroupAndLocalSegmentIndex(n, segmentIndex);
     const int segGroupIndex = segGroupAndLocalSegIndex.segGroup;
     const int localSegmentIndex = segGroupAndLocalSegIndex.localSegIndex;
 
@@ -1232,9 +1265,9 @@ FFI_PLUGIN_EXPORT NeighborSegIdList GetNeighborsOfSegmentIndex(const int n, cons
         const AbtCoords neighborAbt = neighborsAsRelativeAbt.segGroupNeighborAbt[i].abt;
         switch (neighbor) {
             case SegmentGroupNeighbor_Inside: {
-                int neighborLocalSegIndex = ConvertToSegmentIndex2(segGroupIndex, ConvertToLocalSegmentIndex2(n, neighborAbt));
+                int neighborSegIndex = ConvertToSegmentIndex2(n, segGroupIndex, ConvertToLocalSegmentIndex2(n, neighborAbt));
 
-                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = ConvertToSegmentIndex2(segGroupIndex, neighborLocalSegIndex);
+                neighborSegIndexList.neighborSegId[neighborSegIndexList.count] = neighborSegIndex;
                 neighborSegIndexList.count++;
                 break;
             }
