@@ -44,6 +44,15 @@ SegGroupAndLocalSegIndex splitSegIndexToSegGroupAndLocalSegmentIndex(int n, int 
   return _bindings.SplitSegIndexToSegGroupAndLocalSegmentIndex(n, segmentIndex);
 }
 
+List<(double, double)> calculateSegmentCornersInLatLng(int n, int segmentIndex) {
+  final corners = _bindings.CalculateSegmentCornersInLatLng(n, segmentIndex);
+  return [
+    (corners.points[0].lat, corners.points[0].lng),
+    (corners.points[1].lat, corners.points[1].lng),
+    (corners.points[2].lat, corners.points[2].lng),
+  ];
+}
+
 /// A longer lived native function, which occupies the thread calling it.
 ///
 /// Do not call these kind of native functions in the main isolate. They will

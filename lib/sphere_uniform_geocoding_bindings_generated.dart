@@ -167,6 +167,24 @@ class SphereUniformGeocodingBindings {
       _SplitSegIndexToSegGroupAndLocalSegmentIndexPtr.asFunction<
           SegGroupAndLocalSegIndex Function(int, int)>();
 
+  SegmentCornersInLatLng CalculateSegmentCornersInLatLng(
+    int n,
+    int segmentIndex,
+  ) {
+    return _CalculateSegmentCornersInLatLng(
+      n,
+      segmentIndex,
+    );
+  }
+
+  late final _CalculateSegmentCornersInLatLngPtr = _lookup<
+          ffi
+          .NativeFunction<SegmentCornersInLatLng Function(ffi.Int, ffi.Int)>>(
+      'CalculateSegmentCornersInLatLng');
+  late final _CalculateSegmentCornersInLatLng =
+      _CalculateSegmentCornersInLatLngPtr.asFunction<
+          SegmentCornersInLatLng Function(int, int)>();
+
   /// A longer lived native function, which occupies the thread calling it.
   ///
   /// Do not call these kind of native functions in the main isolate. They will
@@ -214,4 +232,17 @@ final class SegGroupAndLocalSegIndex extends ffi.Struct {
 
   @ffi.Int()
   external int localSegIndex;
+}
+
+final class GpsCoords extends ffi.Struct {
+  @ffi.Double()
+  external double lat;
+
+  @ffi.Double()
+  external double lng;
+}
+
+final class SegmentCornersInLatLng extends ffi.Struct {
+  @ffi.Array.multi([3])
+  external ffi.Array<GpsCoords> points;
 }

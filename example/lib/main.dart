@@ -22,6 +22,7 @@ class _MyAppState extends State<MyApp> {
   late int convertToSegmentIndex2Result;
   late SegGroupAndLocalSegIndex splitSegIndexToSegGroupAndLocalSegmentIndexResult;
   late List<int> getNeighborsOfSegmentIndexResult;
+  late List<(double, double)> calculateSegmentCornersInLatLngResult;
   late Future<int> sumAsyncResult;
 
   @override
@@ -37,7 +38,11 @@ class _MyAppState extends State<MyApp> {
     convertToSegmentIndex2Result = sphere_uniform_geocoding.convertToSegmentIndex2(subdivisionCount, 19, subdivisionCount*subdivisionCount-1);
     splitSegIndexToSegGroupAndLocalSegmentIndexResult = sphere_uniform_geocoding.splitSegIndexToSegGroupAndLocalSegmentIndex(subdivisionCount, convertToSegmentIndex2Result);
 
+    calculateSegmentCornersInLatLngResult = sphere_uniform_geocoding.calculateSegmentCornersInLatLng(8192, 0);
+
     sumAsyncResult = sphere_uniform_geocoding.sumAsync(3, 4);
+
+
   }
 
   @override
@@ -79,6 +84,11 @@ class _MyAppState extends State<MyApp> {
                 ),
                 Text(
                   'splitSegIndexToSegGroupAndLocalSegmentIndexResult = (segGroup: ${splitSegIndexToSegGroupAndLocalSegmentIndexResult.segGroup}, localSegIndex: ${splitSegIndexToSegGroupAndLocalSegmentIndexResult.localSegIndex})',
+                  style: textStyle,
+                  textAlign: TextAlign.center,
+                ),
+                Text(
+                  'Segment corners = $calculateSegmentCornersInLatLngResult',
                   style: textStyle,
                   textAlign: TextAlign.center,
                 ),

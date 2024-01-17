@@ -35,6 +35,16 @@ typedef struct
     int localSegIndex;
 } SegGroupAndLocalSegIndex;
 
+typedef struct {
+    double lat;
+    double lng;
+} GpsCoords;
+
+typedef struct
+{
+    GpsCoords points[3];
+} SegmentCornersInLatLng;
+
 // A very short-lived native function.
 //
 // For very short-lived functions, it is fine to call them on the main isolate.
@@ -45,10 +55,11 @@ FFI_PLUGIN_EXPORT intptr_t sum(intptr_t a, intptr_t b);
 FFI_PLUGIN_EXPORT int CalculateSegmentIndexFromLatLng(int n, double lat, double lng);
 FFI_PLUGIN_EXPORT double CalculateSegmentCenterLat(int n, int segmentIndex);
 FFI_PLUGIN_EXPORT double CalculateSegmentCenterLng(int n, int segmentIndex);
-FFI_PLUGIN_EXPORT Vector3 CalculateSegmentCenter(const int n, const int segmentIndex);
-FFI_PLUGIN_EXPORT NeighborSegIdList GetNeighborsOfSegmentIndex(const int n, const int segmentIndex);
-FFI_PLUGIN_EXPORT int ConvertToSegmentIndex2(const int n, int segmentGroupIndex, int localSegmentIndex);
-FFI_PLUGIN_EXPORT SegGroupAndLocalSegIndex SplitSegIndexToSegGroupAndLocalSegmentIndex(const int n, const int segmentIndex);
+FFI_PLUGIN_EXPORT Vector3 CalculateSegmentCenter(int n, int segmentIndex);
+FFI_PLUGIN_EXPORT NeighborSegIdList GetNeighborsOfSegmentIndex(int n, int segmentIndex);
+FFI_PLUGIN_EXPORT int ConvertToSegmentIndex2(int n, int segmentGroupIndex, int localSegmentIndex);
+FFI_PLUGIN_EXPORT SegGroupAndLocalSegIndex SplitSegIndexToSegGroupAndLocalSegmentIndex(int n, int segmentIndex);
+FFI_PLUGIN_EXPORT SegmentCornersInLatLng CalculateSegmentCornersInLatLng(int n, int segmentIndex);
 
 // A longer lived native function, which occupies the thread calling it.
 //
